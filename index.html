@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GateMate Scanner</title>
+    <!-- Modern, readable futuristic fonts: Space Grotesk for headings, Outfit for body -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Include html5-qrcode library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- Include Supabase library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            /* Light theme */
+            --bg-color: #f4f7f6;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(0, 0, 0, 0.08);
+            --primary-accent: #009FB7;
+            --success-color: #059669;
+            --danger-color: #dc2626;
+            --text-main: #1f2937;
+            --text-muted: #4b5563;
+            --gradient-1: rgba(0, 159, 183, 0.08);
+            --gradient-2: rgba(0, 100, 75, 0.08);
+            --btn-hover-bg: rgba(0, 0, 0, 0.05);
+        }
+
+        :root[data-theme="dark"] {
+            /* Dark theme */
+            --bg-color: #09090b;
+            --card-bg: rgba(24, 24, 27, 0.65);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary-accent: #3b82f6;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --gradient-1: rgba(59, 130, 246, 0.05);
+            --gradient-2: rgba(139, 92, 246, 0.05);
+            --btn-hover-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(circle at 10% 10%, var(--gradient-1), transparent 40%),
+                radial-gradient(circle at 90% 90%, var(--gradient-2), transparent 40%);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Top navigation for theme toggle */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+        }
+
+        .brand-logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: 1px;
+        }
+
+        .brand-logo span {
+            color: var(--primary-accent);
+        }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-toggle:hover {
+            color: var(--primary-accent);
+            border-color: var(--primary-accent);
+            background: var(--btn-hover-bg);
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .scanner-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .scanner-title {
+            color: var(--primary-accent);
+            margin-bottom: 24px;
+            font-size: 2rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--card-border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            background: #000;
+            margin: 0 auto;
+            position: relative;
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #reader video {
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        /* Result Overlays */
+        .result-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(1.1);
+        }
+
+        .result-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: scale(1);
+        }
+
+        .result-overlay.allowed {
+            background-color: rgba(16, 185, 129, 0.95); /* Success Green */
+            backdrop-filter: blur(10px);
+        }
+
+        .result-overlay.denied {
+            background-color: rgba(239, 68, 68, 0.95); /* Danger Red */
+            backdrop-filter: blur(10px);
+        }
+
+        .result-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+
+        .result-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .result-subtitle {
+            font-size: 2rem;
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 500;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .scan-again-btn {
+            margin-top: 40px;
+            padding: 14px 36px;
+            background: white;
+            color: #09090b;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-transform: uppercase;
+        }
+
+        .scan-again-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        
+        .result-overlay.allowed .scan-again-btn { color: var(--success-color); }
+        .result-overlay.denied .scan-again-btn { color: var(--danger-color); }
+
+        /* Loader inside camera if starting */
+        .camera-loading {
+            position: absolute;
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            z-index: 5;
+        }
+        
+        #error-message {
+            color: var(--danger-color);
+            margin-top: 15px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+    </style>
+</head>
+
+<body>
+    <!-- Top Navigation with Theme Toggle -->
+    <div class="top-bar">
+        <div class="brand-logo">GATE<span>MATE</span></div>
+        <button class="theme-toggle" id="theme-toggle-btn" aria-label="Toggle Theme">
+            <!-- Sun icon (shows in light mode, meaning click to go dark) -->
+            <svg id="icon-sun" style="display:none;" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <!-- Moon icon (shows in dark mode, meaning click to go light) -->
+            <svg id="icon-moon" style="display:block;" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div class="scanner-container glass-card">
+        <h1 class="scanner-title">Scan QR</h1>
+        <div id="reader">
+            <div class="camera-loading" id="camera-loading">Initializing Camera...</div>
+        </div>
+        <div id="error-message"></div>
+        <p class="instructions">Point your camera at the visitor's QR code.</p>
+    </div>
+
+    <!-- Allowed Overlay -->
+    <div id="allowed-overlay" class="result-overlay allowed">
+        <div class="result-icon">✅</div>
+        <h1 class="result-title">Allowed</h1>
+        <div id="allowed-name" class="result-subtitle">Name Here</div>
+        <button class="scan-again-btn" onclick="resetScanner()">Scan Next</button>
+    </div>
+
+    <!-- Denied Overlay -->
+    <div id="denied-overlay" class="result-overlay denied">
+        <div class="result-icon">❌</div>
+        <h1 class="result-title">Not Allowed</h1>
+        <div id="denied-reason" class="result-subtitle">Reason Here</div>
+        <button class="scan-again-btn" onclick="resetScanner()">Scan Next</button>
+    </div>
+
+    <script>
+        let html5QrCode;
+        let isScanning = true;
+        let supabaseClient;
+        let resetTimeoutId = null;
+
+        // --- Theme Toggle Logic ---
+        try {
+            const htmlEl = document.documentElement;
+            const themeBtn = document.getElementById('theme-toggle-btn');
+            const iconSun = document.getElementById('icon-sun');
+            const iconMoon = document.getElementById('icon-moon');
+
+            function updateThemeIcon() {
+                if (htmlEl.getAttribute('data-theme') === 'dark') {
+                    iconMoon.style.display = 'block';
+                    iconSun.style.display = 'none';
+                } else {
+                    iconMoon.style.display = 'none';
+                    iconSun.style.display = 'block';
+                }
+            }
+
+            themeBtn.addEventListener('click', () => {
+                const currentTheme = htmlEl.getAttribute('data-theme');
+                if (currentTheme === 'dark') {
+                    htmlEl.removeAttribute('data-theme'); 
+                } else {
+                    htmlEl.setAttribute('data-theme', 'dark');
+                }
+                updateThemeIcon();
+            });
+            updateThemeIcon();
+        } catch(e) {
+            console.error("Theme toggle error:", e);
+        }
+
+        // ==========================================
+        // SUPABASE CONFIGURATION
+        // ==========================================
+        const SUPABASE_URL = "https://ruyivclfgkqdwaddxmoi.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1eWl2Y2xmZ2txZHdhZGR4bW9pIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTUxNzMyOSwiZXhwIjoyMDk3MDkzMzI5fQ.bltWhqk9O9FooUe86-vDjOxcGsM96KNk-srAJHWOha4";
+        
+        try {
+            if (SUPABASE_URL && SUPABASE_URL !== "YOUR_SUPABASE_URL_HERE") {
+                if (window.supabase) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    console.log("Supabase client initialized.");
+                } else {
+                    console.error("Supabase script failed to load from CDN.");
+                }
+            }
+        } catch(e) {
+            console.error("Supabase init error:", e);
+        }
+
+        // --- Database Logic ---
+        async function verifyKeyInDatabase(rawQrCodeKey) {
+            const qrCodeKey = rawQrCodeKey.trim();
+            console.log(`Verifying key: "${qrCodeKey}" (Raw: "${rawQrCodeKey}")`);
+            
+            if (supabaseClient) {
+                try {
+                    // IMPORTANT: If your table is NOT named 'visitors', you MUST change the name here!
+                    // Example: .from('your_table_name')
+                    const { data, error } = await supabaseClient
+                        .from('people')
+                        .select('*')
+                        .eq('id_key', qrCodeKey)
+                        .single();
+
+                    // If supabase throws an error (e.g. table doesn't exist, or no rows found)
+                    if (error) {
+                        console.error("Supabase Database Error:", error.message, error.details);
+                        return { valid: false, errorMsg: error.message };
+                    }
+                    
+                    if (!data) {
+                        return { valid: false, errorMsg: "Key not found in database." };
+                    }
+                    
+                    return {
+                        valid: true,
+                        active: data.active,
+                        name: data.name,
+                        role: data.role
+                    };
+                } catch (err) {
+                    console.error("Supabase Catch Error:", err);
+                    return { valid: false, errorMsg: err.toString() };
+                }
+            }
+
+            // Fallback mock logic if Supabase keys are not set yet
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    if (qrCodeKey === "U-KORNZW") {
+                        resolve({ valid: true, name: "John Doe", active: true, role: "User" });
+                    } else if (qrCodeKey === "A-123456") {
+                        resolve({ valid: true, name: "Admin Alice", active: false, role: "Admin" });
+                    } else {
+                        const regex = /^[TUA]-[A-Z0-9]{6}$/i;
+                        if (regex.test(qrCodeKey)) {
+                             resolve({ valid: true, name: "Unknown Visitor", active: false, role: "Unknown" });
+                        } else {
+                            resolve({ valid: false });
+                        }
+                    }
+                }, 800);
+            });
+        }
+
+        function showResult(type, mainText, subText) {
+            isScanning = false;
+            
+            if(html5QrCode) {
+                try { html5QrCode.pause(true); } catch(e){}
+            }
+
+            const overlayId = type === 'allowed' ? 'allowed-overlay' : 'denied-overlay';
+            const subTextId = type === 'allowed' ? 'allowed-name' : 'denied-reason';
+            
+            document.getElementById(subTextId).innerText = subText;
+            document.getElementById(overlayId).classList.add('active');
+
+            // Auto-dismiss screen after 5 seconds
+            if (resetTimeoutId) clearTimeout(resetTimeoutId);
+            resetTimeoutId = setTimeout(() => {
+                resetScanner();
+            }, 5000);
+        }
+
+        function resetScanner() {
+            if (resetTimeoutId) {
+                clearTimeout(resetTimeoutId);
+                resetTimeoutId = null;
+            }
+
+            document.getElementById('allowed-overlay').classList.remove('active');
+            document.getElementById('denied-overlay').classList.remove('active');
+            
+            if(html5QrCode) {
+                try { html5QrCode.resume(); } catch(e){}
+            }
+            
+            setTimeout(() => {
+                isScanning = true;
+            }, 1000);
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            if (!isScanning) return;
+            isScanning = false;
+
+            if(html5QrCode) {
+                try { html5QrCode.pause(true); } catch(e){}
+            }
+
+            console.log(`Code matched: ${decodedText}`);
+            
+            verifyKeyInDatabase(decodedText).then(dbRecord => {
+                if (dbRecord && dbRecord.valid) {
+                    if (dbRecord.active) {
+                        showResult('allowed', 'Allowed', dbRecord.name);
+                    } else {
+                        showResult('denied', 'Not Allowed', 'Entry Disabled (Inactive)');
+                    }
+                } else {
+                    let reason = 'Invalid QR Code';
+                    
+                    // If we got an error message back from Supabase, let's use it for easier debugging
+                    if (dbRecord && dbRecord.errorMsg) {
+                        if (dbRecord.errorMsg.includes("does not exist")) {
+                            reason = "Table 'people' not found! Check code.";
+                        } else if (dbRecord.errorMsg.includes("JSON object requested, multiple (or no) rows returned")) {
+                            reason = `Not in DB: "${decodedText}"`;
+                        } else {
+                            reason = "DB Error: " + dbRecord.errorMsg;
+                        }
+                    }
+
+                    showResult('denied', 'Not Allowed', reason);
+                }
+            }).catch(err => {
+                console.error("DB Verification Error:", err);
+                showResult('denied', 'Not Allowed', 'Database Error');
+            });
+        }
+
+        function startCamera() {
+            html5QrCode = new Html5Qrcode("reader");
+            
+            // Increased FPS to 30 for much faster scanning
+            // Removed qrbox so it scans the entire frame instantly from any distance
+            const config = { 
+                fps: 30, 
+                aspectRatio: 1.0,
+                formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ]
+            };
+
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length > 0) {
+                    let cameraId = devices[0].id;
+                    // Prefer back camera if available
+                    for (let i=0; i<devices.length; i++) {
+                        if (devices[i].label.toLowerCase().includes("back") || devices[i].label.toLowerCase().includes("environment")) {
+                            cameraId = devices[i].id;
+                            break;
+                        }
+                    }
+                    
+                    html5QrCode.start(cameraId, config, onScanSuccess)
+                    .then(() => {
+                        document.getElementById("camera-loading").style.display = "none";
+                    })
+                    .catch((err) => {
+                        document.getElementById("camera-loading").style.display = "none";
+                        document.getElementById("error-message").innerText = "Camera start error: " + err;
+                    });
+                } else {
+                    document.getElementById("camera-loading").style.display = "none";
+                    document.getElementById("error-message").innerText = "No cameras found.";
+                }
+            }).catch(err => {
+                document.getElementById("camera-loading").style.display = "none";
+                document.getElementById("error-message").innerText = "Camera permission denied.";
+            });
+        }
+
+        window.onload = () => {
+            if (window.location.protocol === 'file:') {
+                document.getElementById("camera-loading").style.display = "none";
+                document.getElementById("error-message").innerText = "Warning: Browsers block camera access from file://. Please use http://localhost:8000";
+            } else {
+                startCamera();
+            }
+        };
+    </script>
+</body>
+
+</html>
