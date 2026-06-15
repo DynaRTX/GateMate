@@ -394,6 +394,21 @@
                         return { valid: false, errorMsg: "Key not found in database." };
                     }
                     
+                    // --- Logging System ---
+                    // Insert a record of this scan into the 'log' table
+                    const { error: logError } = await supabaseClient.from('log').insert([
+                        {
+                            id_key: qrCodeKey,
+                            name: data.name,
+                            status: data.active ? 'Allowed' : 'Denied (Inactive)',
+                            scanned_at: new Date().toISOString()
+                        }
+                    ]);
+                    
+                    if (logError) {
+                        console.error("Failed to write to log table:", logError.message);
+                    }
+                    
                     return {
                         valid: true,
                         active: data.active,
