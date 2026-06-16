@@ -407,6 +407,7 @@
                     
                     if (logError) {
                         console.error("Failed to write to log table:", logError.message);
+                        alert("Failed to save log to database! Error: " + logError.message);
                     }
                     
                     return {
